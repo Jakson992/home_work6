@@ -1,4 +1,6 @@
 import sys
+import shutil
+import tempfile
 from pathlib import Path
 
 CYRILLIC_SYMBOLS = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяєіїґ"
@@ -6,7 +8,7 @@ TRANSLATION = (
     "a", "b", "v", "g", "d", "e", "e", "j", "z", "i", "j", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u",
     "f", "h", "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya", "je", "i", "ji", "g")
 
-BAD_SYMBOLS = ('%','*',' ','-')
+BAD_SYMBOLS = ('%', '*', ' ', '-')
 
 TRANS = {}
 for c, l in zip(CYRILLIC_SYMBOLS, TRANSLATION):
@@ -38,6 +40,19 @@ def move_file(file: Path, root_dir: Path, category: str):
         target_dir.mkdir()
     return file.replace(target_dir.joinpath(normalize(file.name)))
 
+def unpack_archive(file: Path, root_dir: Path):
+    temp_dir = Path(tempfile.mkdtemp())
+    shutil.unpack_archive(str(file), str(temp_dir))
+    for item in temp_dir.glob('*'):
+        if not item.is_dir():
+            category = get_categories(item)
+            new_path = move_file(item, root_dir, category)
+            print(new_path)
+        else:
+            sort_dir(root_dir, item)
+            item.rmdir()
+    shutil.rmtree(str(temp_dir))
+
 def get_categories(file: Path):
     extension = file.suffix.lower()
     for cat, exts in CATEGORIES.items():
@@ -48,9 +63,12 @@ def get_categories(file: Path):
 def sort_dir(root_dir: Path, current_dir: Path):
     for item in [f for f in current_dir.glob('*') if f.name not in CATEGORIES.keys()]:
         if not item.is_dir():
-            category = get_categories(item)
-            new_path = move_file(item, root_dir, category)
-            print(new_path)
+            if item.suffix.lower() in CATEGORIES['archives']:
+                unpack_archive(item, root_dir)
+            else:
+                category = get_categories(item)
+                new_path = move_file(item, root_dir, category)
+                print(new_path)
         else:
             sort_dir(root_dir, item)
             item.rmdir()
@@ -67,6 +85,7 @@ def main():
 
     sort_dir(path, path)
     return 'All Ok'
+
 
 if __name__ == '__main__':
     print(main())
